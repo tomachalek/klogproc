@@ -22,44 +22,68 @@ import (
 	"net/http"
 )
 
+// ESClient is a simple ElasticSearch client
 type ESClient struct {
 	server string
+	index  string
 }
 
-func NewClient(server string) *ESClient {
+// NewClient returns an instance of ESClient
+func NewClient(server string, index string) *ESClient {
 	c := ESClient{
 		server: server,
+		index:  index,
 	}
 	return &c
 }
 
-func encodeJson(record LogRecord) []byte {
-	str, err := json.Marshal(record)
-	if err == nil {
-		return str
-	}
-	return nil
-}
-
-func (c *ESClient) Test() (string, error) {
-	tmp := "first_form?corpname=omezeni%2Fsyn2010&format=json"
-	return c.jsonRequest(tmp, LogRecord{})
-}
-
-func (c *ESClient) jsonRequest(path string, record LogRecord) (string, error) {
-	body := bytes.NewBuffer(encodeJson(record))
-	req, err := http.NewRequest("GET", c.server+"/"+path, body)
-	client := http.Client{}
-	if err == nil {
-		resp, err := client.Do(req)
-		ans, err := ioutil.ReadAll(resp.Body)
+// UpdateSetAPIFlag sets a (new) attribute "isApi" to "true" for all
+// the matching documents
+func (c *ESClient) UpdateSetAPIFlag(conf ConfUpdate) (string, error) {
+	if !conf.Disabled {
+		ans, err := CreateQuery(conf.FromDate, conf.ToDate, conf.IPAddress, conf.UserAgent)
 		if err == nil {
-			fmt.Println("RESP ALL: ", resp)
-			var respMap map[string]string
-			json.Unmarshal(ans, respMap)
-			fmt.Println("RESPONSE: ", respMap)
-			return respMap["id"], nil
+			return c.Do("GET", "/"+c.index+"/_search", ans)
 		}
+		return "", err
 	}
-	return "", err
+	return "", nil
+}
+
+/*
+TODO: cheatsheet
+
+partial update;
+POST /website/blog/1/_update
+{
+   "doc" : {
+      "tags" : [ "testing" ],
+      "views": 0
+   }
+}
+*/
+
+// Do sends a general request to ElasticSearch server
+func (c *ESClient) Do(method string, path string, query []byte) (string, error) {
+	body := bytes.NewBuffer(query)
+	client := http.Client{}
+	req, err := http.NewRequest(method, c.server+path, body)
+	if err != nil {
+		return "", err
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	fmt.Println("STATUS CODE: ", resp.StatusCode)
+	ans, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	fmt.Println("RESP ALL: ", string(ans))
+	var srchResult Result
+	err2 := json.Unmarshal(ans, &srchResult)
+	fmt.Println("ERR: ", err2)
+	fmt.Println("RESPONSE: ", srchResult)
+	return "foo", err2
 }

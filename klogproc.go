@@ -21,10 +21,20 @@ import (
 	"io/ioutil"
 )
 
+type ConfUpdate struct {
+	Disabled  bool   `json:"disabled"`
+	FromDate  string `json:"fromDate"`
+	ToDate    string `json:"toDate"`
+	IPAddress string `json:"ipAddress"`
+	UserAgent string `json:"userAgent"`
+}
+
 type Conf struct {
-	WorklogPath   string `json:"worklogPath"`
-	LogDir        string `json:"logDir"`
-	ElasticServer string `json:"elasticServer"`
+	WorklogPath   string       `json:"worklogPath"`
+	LogDir        string       `json:"logDir"`
+	ElasticServer string       `json:"elasticServer"`
+	ElasticIndex  string       `json:"elasticIndex"`
+	Updates       []ConfUpdate `json:"updates"`
 }
 
 func main() {
@@ -52,7 +62,9 @@ func main() {
 		p.Parse(last)
 	}
 
-	client := NewClient(conf.ElasticServer)
-	ans, err := client.Test()
-	fmt.Println("CLIENT ANS: ", ans, err)
+	client := NewClient(conf.ElasticServer, conf.ElasticIndex)
+	for _, updConf := range conf.Updates {
+		ans, err := client.Update(updConf)
+		fmt.Printf("CLIENT resp - ans: [%s], err: [%s]\n", ans, err)
+	}
 }
